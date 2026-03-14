@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build output (frontend copy used by backend in production)
+backend/public/
+
+# Uploads (ephemeral on most hosts)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs and OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
