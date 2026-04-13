@@ -119,7 +119,7 @@ const getMe = async (req, res) => {
 };
 
 const genericForgotMessage =
-    'If an account exists for this email, you will receive password reset instructions shortly.';
+    'If an account exists for this email, you will receive password reset instructions shortly. Check spam / junk as well.';
 
 /** Base URL for reset links: never use localhost on Render (breaks phones). */
 function resolvePasswordResetBaseUrl() {
@@ -158,8 +158,13 @@ const forgotPassword = async (req, res) => {
         const emailLower = email.toLowerCase().trim();
         const user = await User.findOne({ email: emailLower });
 
-        // Always same response to avoid email enumeration
+        // Same JSON for unknown email (no enumeration); no mail is sent — see server log
         if (!user) {
+            console.info(
+                '[auth] forgot-password: no registered user for',
+                emailLower,
+                '(no email sent — register first or use the exact email you signed up with)'
+            );
             return res.json({ message: genericForgotMessage });
         }
 
@@ -186,14 +191,38 @@ const forgotPassword = async (req, res) => {
         const baseUrl = resolvePasswordResetBaseUrl();
         const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
-        await sendPasswordResetEmail({
-            to: user.email,
-            name: user.name,
-            resetUrl,
-        });
+        try {
+            const mailResult = await sendPasswordResetEmail({
+                to: user.email,
+                name: user.name || 'User',
+                resetUrl,
+            });
+            console.log(
+                '[auth] forgot-password: Gmail/SMTP accepted message for',
+                user.email,
+                'messageId=',
+                mailResult?.messageId || '(n/a)',
+                'reset path=/reset-password?token=…'
+            );
+        } catch (emailErr) {
+            console.error('[auth] forgot-password: email send failed', emailErr);
+            await User.findByIdAndUpdate(user._id, {
+                $unset: {
+                    passwordResetToken: 1,
+                    passwordResetExpires: 1,
+                },
+            });
+            return res.status(502).json({
+                message:
+                    'Could not send the reset email. On Render, set SMTP_HOST, SMTP_USER, SMTP_PASS (Gmail App Password, 16 chars, no spaces), and SMTP_FROM to the same Gmail as SMTP_USER.',
+                code: 'EMAIL_SEND_FAILED',
+                detail: String(emailErr.message || emailErr).slice(0, 500),
+            });
+        }
 
         res.json({ message: genericForgotMessage });
     } catch (error) {
+        console.error('[auth] forgot-password', error);
         res.status(500).json({ message: error.message });
     }
 };

@@ -3,23 +3,27 @@ const nodemailer = require('nodemailer');
 const APP_NAME = process.env.EMAIL_APP_NAME || 'IIIT Surat Library';
 
 function isEmailConfigured() {
+    const pass = String(process.env.SMTP_PASS || '').replace(/\s+/g, '');
     return Boolean(
-        process.env.SMTP_HOST &&
-            process.env.SMTP_USER &&
-            process.env.SMTP_PASS
+        process.env.SMTP_HOST?.trim() &&
+            process.env.SMTP_USER?.trim() &&
+            pass.length > 0
     );
 }
 
 function getTransporter() {
     if (!isEmailConfigured()) return null;
     return nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
+        host: process.env.SMTP_HOST?.trim(),
         port: Number(process.env.SMTP_PORT) || 587,
         secure: process.env.SMTP_SECURE === 'true',
         auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
+            user: process.env.SMTP_USER?.trim(),
+            pass: String(process.env.SMTP_PASS || '').replace(/\s+/g, ''),
         },
+        connectionTimeout: 25_000,
+        greetingTimeout: 15_000,
+        socketTimeout: 25_000,
     });
 }
 
@@ -34,8 +38,16 @@ async function sendMail({ to, subject, text, html }) {
     const from =
         process.env.SMTP_FROM ||
         `"${APP_NAME}" <${process.env.SMTP_USER}>`;
-    await transporter.sendMail({ from, to, subject, text, html });
-    return { sent: true };
+    const replyTo = process.env.SMTP_USER?.trim();
+    const info = await transporter.sendMail({
+        from,
+        to,
+        replyTo,
+        subject,
+        text,
+        html,
+    });
+    return { sent: true, messageId: info.messageId };
 }
 
 function formatDueDate(d) {

@@ -105,7 +105,13 @@ This guide deploys the app as **one service**: the Node backend serves the built
 3. **Free tier**  
    On the free tier, the service may sleep after inactivity. The first request after sleep can take 30–60 seconds.
 
-4. **Due-date emails on free tier**  
+4. **Forgot password: no link in email (or nothing arrives)**  
+   - **Success message but no mail:** The address may not be **registered** — the API does not reveal that; no email is sent. Use the **exact** `@iiitsurat.ac.in` you used at sign-up. Check Render **Logs** for `no registered user for`.  
+   - **Error toast / 502:** Fix **SMTP** on Render (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`). Gmail needs an **App password** (16 chars, no spaces). `SMTP_FROM` must match the Gmail used in `SMTP_USER`. The toast may show a **detail** line from the mail server.  
+   - **503:** SMTP env vars are missing.  
+   - Always check **spam/junk** for `iiitsurat.ac.in` (institute mail may delay or filter).
+
+5. **Due-date emails on free tier**  
    In-app cron runs only while the server is awake. On Render free, the app sleeps, so schedule emails with an **external cron** (e.g. [cron-job.org](https://cron-job.org)) **POST** once per day to:
    `https://your-app.onrender.com/api/internal/due-reminders`  
    Header: `x-cron-secret: <same value as CRON_SECRET in Render env>`.  

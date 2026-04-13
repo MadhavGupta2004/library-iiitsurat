@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import DashboardLayout from '../../components/DashboardLayout';
+import { loadRazorpayScript } from '../../utils/loadRazorpay';
 import { HiOutlineCurrencyRupee, HiOutlineCheckCircle, HiOutlineExclamationCircle } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 
@@ -29,6 +30,7 @@ const PaymentPage = () => {
     const handlePayment = async () => {
         try {
             setVerifying(true);
+            await loadRazorpayScript();
             const res = await api.post('/api/payment/create-order');
             const data = res.data;
 

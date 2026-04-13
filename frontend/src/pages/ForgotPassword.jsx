@@ -28,7 +28,11 @@ const ForgotPassword = () => {
             toast.success(data.message || 'Check your email');
             setSent(true);
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Something went wrong');
+            const d = err.response?.data;
+            const extra = d?.detail ? ` — ${d.detail}` : '';
+            toast.error((d?.message || 'Something went wrong') + extra, {
+                duration: 8000,
+            });
         } finally {
             setLoading(false);
         }
@@ -72,10 +76,17 @@ const ForgotPassword = () => {
 
                 <div className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
                     {sent ? (
-                        <p className="text-surface-300 text-sm leading-relaxed">
-                            If an account exists for that email, you will receive instructions shortly.
-                            Check your spam folder as well.
-                        </p>
+                        <div className="text-surface-300 text-sm leading-relaxed space-y-3">
+                            <p>
+                                If that address is <strong className="text-surface-200">registered</strong> on this
+                                library site, a reset link was sent. Check <strong className="text-surface-200">inbox and spam</strong> within a few minutes.
+                            </p>
+                            <p className="text-surface-400 text-xs">
+                                No email? You may not have an account yet (register first), or the server mail settings
+                                (SMTP) may be missing — ask the admin to check Render logs for{' '}
+                                <code className="text-surface-300">forgot-password</code>.
+                            </p>
+                        </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
