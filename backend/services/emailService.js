@@ -2,29 +2,49 @@ const nodemailer = require('nodemailer');
 
 const APP_NAME = process.env.EMAIL_APP_NAME || 'IIIT Surat Library';
 
+/** Render / copy-paste sometimes wraps secrets in extra quotes — strip one outer pair only */
+function trimEnvQuotes(val) {
+    let t = String(val ?? '').trim();
+    if (
+        t.length >= 2 &&
+        ((t.startsWith('"') && t.endsWith('"')) ||
+            (t.startsWith("'") && t.endsWith("'")))
+    ) {
+        t = t.slice(1, -1).trim();
+    }
+    return t;
+}
+
 function isEmailConfigured() {
-    const pass = String(process.env.SMTP_PASS || '').replace(/\s+/g, '');
+    const pass = trimEnvQuotes(process.env.SMTP_PASS).replace(/\s+/g, '');
     return Boolean(
         process.env.SMTP_HOST?.trim() &&
-            process.env.SMTP_USER?.trim() &&
+            trimEnvQuotes(process.env.SMTP_USER) &&
             pass.length > 0
     );
 }
 
 function getTransporter() {
     if (!isEmailConfigured()) return null;
-    return nodemailer.createTransport({
+    const port = Number(process.env.SMTP_PORT) || 587;
+    const secure = process.env.SMTP_SECURE === 'true';
+    const opts = {
         host: process.env.SMTP_HOST?.trim(),
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true',
+        port,
+        secure,
         auth: {
-            user: process.env.SMTP_USER?.trim(),
-            pass: String(process.env.SMTP_PASS || '').replace(/\s+/g, ''),
+            user: trimEnvQuotes(process.env.SMTP_USER),
+            pass: trimEnvQuotes(process.env.SMTP_PASS).replace(/\s+/g, ''),
         },
         connectionTimeout: 25_000,
         greetingTimeout: 15_000,
         socketTimeout: 25_000,
-    });
+    };
+    // Gmail on 587: STARTTLS (fixes many "Invalid login" / connection issues on cloud hosts)
+    if (!secure && port === 587) {
+        opts.requireTLS = true;
+    }
+    return nodemailer.createTransport(opts);
 }
 
 async function sendMail({ to, subject, text, html }) {
@@ -35,10 +55,12 @@ async function sendMail({ to, subject, text, html }) {
         );
         return { skipped: true };
     }
-    const from =
-        process.env.SMTP_FROM ||
-        `"${APP_NAME}" <${process.env.SMTP_USER}>`;
-    const replyTo = process.env.SMTP_USER?.trim();
+    const smtpUser = trimEnvQuotes(process.env.SMTP_USER);
+    let from = process.env.SMTP_FROM?.trim() || `"${APP_NAME}" <${smtpUser}>`;
+    if (/^["'].*["']$/.test(from) && from.includes('@')) {
+        from = trimEnvQuotes(from);
+    }
+    const replyTo = smtpUser;
     const info = await transporter.sendMail({
         from,
         to,

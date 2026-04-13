@@ -14,6 +14,7 @@ const ForgotPassword = () => {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
     const [sent, setSent] = useState(false);
+    const [smtpError, setSmtpError] = useState(null);
     const { darkMode, toggleDarkMode } = useTheme();
 
     const handleSubmit = async (e) => {
@@ -23,16 +24,25 @@ const ForgotPassword = () => {
             return;
         }
         setLoading(true);
+        setSmtpError(null);
         try {
             const { data } = await api.post('/auth/forgot-password', { email });
             toast.success(data.message || 'Check your email');
             setSent(true);
         } catch (err) {
             const d = err.response?.data;
-            const extra = d?.detail ? ` — ${d.detail}` : '';
-            toast.error((d?.message || 'Something went wrong') + extra, {
-                duration: 8000,
-            });
+            const msg = d?.message || 'Something went wrong';
+            const detail = d?.detail || '';
+            const full = detail ? `${msg}\n\n${detail}` : msg;
+            setSmtpError(
+                err.response?.status === 502
+                    ? { message: msg, detail, code: d?.code }
+                    : { message: full, detail: '', code: d?.code }
+            );
+            toast.error(detail ? `${msg} (see details below)` : msg, { duration: 6000 });
+            if (import.meta.env.DEV) {
+                console.error('[forgot-password]', err.response?.status, d);
+            }
         } finally {
             setLoading(false);
         }
@@ -89,6 +99,25 @@ const ForgotPassword = () => {
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-5">
+                            {smtpError && (
+                                <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 p-4 text-left text-sm text-rose-100 space-y-2">
+                                    <p className="font-semibold text-rose-200">Email could not be sent (502)</p>
+                                    <p className="text-rose-100/90">{smtpError.message}</p>
+                                    {smtpError.detail ? (
+                                        <pre className="text-xs whitespace-pre-wrap break-words text-rose-200/80 bg-black/20 rounded-lg p-2 overflow-x-auto max-h-40">
+                                            {smtpError.detail}
+                                        </pre>
+                                    ) : null}
+                                    <p className="text-xs text-rose-200/80 pt-1">
+                                        On Render: use Gmail <strong>App password</strong> (16 letters, no spaces) in{' '}
+                                        <code className="text-rose-100">SMTP_PASS</code>. Set{' '}
+                                        <code className="text-rose-100">SMTP_FROM</code> to the same address as{' '}
+                                        <code className="text-rose-100">SMTP_USER</code>. Use{' '}
+                                        <code className="text-rose-100">SMTP_PORT=587</code> and{' '}
+                                        <code className="text-rose-100">SMTP_SECURE=false</code>.
+                                    </p>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-surface-300 mb-2">
                                     Institute email
