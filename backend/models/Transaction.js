@@ -36,6 +36,14 @@ const transactionSchema = new mongoose.Schema(
             enum: ['issued', 'returned', 'overdue'],
             default: 'issued',
         },
+        /** Set when "due tomorrow" reminder email was sent (avoid duplicates) */
+        preDueReminderSentAt: {
+            type: Date,
+        },
+        /** Set when first overdue notice email was sent */
+        overdueEmailSentAt: {
+            type: Date,
+        },
     },
     { timestamps: true }
 );

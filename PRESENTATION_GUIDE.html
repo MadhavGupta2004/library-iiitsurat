@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Library Management System — Presentation Guide (PDF)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.5;
+      color: #1a1a1a;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #fff;
+    }
+    h1 {
+      font-size: 1.75rem;
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 0.5rem;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      color: #1e40af;
+    }
+    h1:first-of-type { margin-top: 0; }
+    h2 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #1e3a5f; }
+    h3 { font-size: 1.1rem; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    p { margin: 0.5rem 0; }
+    ul, ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+    li { margin: 0.25rem 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    th { background: #f1f5f9; font-weight: 600; }
+    strong { color: #1e40af; }
+    hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.5rem 0; }
+    .subtitle { color: #64748b; font-size: 0.95rem; margin-bottom: 1.5rem; }
+    .page-break { page-break-before: always; }
+    @media print {
+      body { padding: 1rem; }
+      h1 { page-break-after: avoid; }
+      h2, h3 { page-break-after: avoid; }
+      table { page-break-inside: avoid; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <p class="no-print" style="text-align:center; color:#64748b; font-size:0.9rem;">Open this file in a browser → <strong>Ctrl+P</strong> (or Cmd+P) → Choose <strong>Save as PDF</strong> to get your presentation PDF.</p>
+  <hr class="no-print" />
+
+  <h1>IIIT Surat Library Management System — Presentation Guide</h1>
+  <p class="subtitle"><strong>For non-technical audience:</strong> focus on flow, purpose, and outcomes. No coding details.</p>
+
+  <h2>1. What Is This Project?</h2>
+  <ul>
+    <li><strong>Name:</strong> Library Management System for IIIT Surat</li>
+    <li><strong>Purpose:</strong> A <strong>web application</strong> that helps the institute library manage books, issue/return, track fines, and lets students search books and pay fines online.</li>
+    <li><strong>Users:</strong> Two types — <strong>Students</strong> and <strong>Librarians (admin)</strong>.</li>
+    <li><strong>Outcome:</strong> Less manual work, faster issue/return, clear records, and online fine payment.</li>
+  </ul>
+
+  <h2>2. High-Level Workflow (How It Works)</h2>
+  <h3>Overall Flow in Simple Steps</h3>
+  <ol>
+    <li><strong>User opens the website</strong> → Sees Login or Register.</li>
+    <li><strong>Registration</strong> → Only allowed if the person’s email is <strong>@iiitsurat.ac.in</strong> and the librarian has <strong>pre-approved</strong> that email. Role (student/librarian) is fixed by admin.</li>
+    <li><strong>Login</strong> → User enters email and password. System sends them to:
+      <ul>
+        <li><strong>Student dashboard</strong> (search books, see issued books, pay fines), or</li>
+        <li><strong>Librarian dashboard</strong> (add books, issue/return, see overdue, collect fines, export data).</li>
+      </ul>
+    </li>
+    <li><strong>Students</strong> → Search books, see what they have issued, see dues/fines, pay fines online (Razorpay).</li>
+    <li><strong>Librarians</strong> → Add/edit books, issue books (by scanning QR or selecting student + book), return books, see overdue list, view fine collection, export transaction/payment data to CSV.</li>
+  </ol>
+  <h3>Flow in Words</h3>
+  <ul>
+    <li><strong>Start</strong> → Login/Register (only institute emails, pre-approved list).</li>
+    <li><strong>After login</strong> → Student goes to student area; Librarian goes to librarian area.</li>
+    <li><strong>Student flow:</strong> Dashboard → Book search → View issue history → Pay fines online.</li>
+    <li><strong>Librarian flow:</strong> Dashboard → Add/Manage books → Issue book (QR or manual) → Return book → Overdue books → Fine collection → Export data / View payments.</li>
+  </ul>
+
+  <h2 class="page-break">3. Most Important Points to Tell</h2>
+  <h3>3.1 Security & Access</h3>
+  <ul>
+    <li>Only <strong>@iiitsurat.ac.in</strong> emails can register.</li>
+    <li>Not everyone can register: <strong>librarian first adds allowed users</strong>; only those can create an account.</li>
+    <li><strong>Roles are fixed</strong> at registration (student or librarian); users cannot change their own role.</li>
+    <li>Passwords are stored securely; login uses tokens so only logged-in users can access their pages.</li>
+  </ul>
+  <h3>3.2 Two Sides: Student vs Librarian</h3>
+  <p><strong>Student side:</strong></p>
+  <ul>
+    <li>View <strong>dashboard</strong>: currently issued books, due dates, fines.</li>
+    <li><strong>Search books</strong> by title/author/ISBN.</li>
+    <li>View <strong>issue history</strong>.</li>
+    <li><strong>Pay fines online</strong> (Razorpay); view <strong>payment history</strong>.</li>
+  </ul>
+  <p><strong>Librarian side:</strong></p>
+  <ul>
+    <li><strong>Add/Edit/Delete books</strong> (with cover image, ISBN, copies, rack location).</li>
+    <li><strong>Issue book</strong>: scan QR on book or select student + book and issue.</li>
+    <li><strong>Return book</strong>: scan QR or enter details; system <strong>calculates fine</strong> if late.</li>
+    <li><strong>Overdue books</strong>: list of all books not returned by due date.</li>
+    <li><strong>Fine collection</strong>: view fines; students pay online; librarian can also <strong>mark as paid manually</strong>.</li>
+    <li><strong>Export</strong>: export transactions and payments to <strong>CSV</strong> for records.</li>
+    <li><strong>Students list</strong>: view registered students.</li>
+    <li><strong>Payments</strong>: see all payments, export, download receipts.</li>
+  </ul>
+  <h3>3.3 Issue and Return Flow</h3>
+  <ul>
+    <li><strong>Issue:</strong> Librarian selects student and book (or scans QR). System checks: book available, student valid. It creates an <strong>issue record</strong> with <strong>due date = 14 days</strong> from issue. Available copies of the book are reduced by 1.</li>
+    <li><strong>Return:</strong> Librarian marks the book as returned. System <strong>calculates fine: ₹5 per day</strong> after due date. Fine is stored with the transaction. Student can pay online; librarian can mark paid manually.</li>
+  </ul>
+  <h3>3.4 Fine System</h3>
+  <ul>
+    <li><strong>Rule:</strong> <strong>₹5 per day</strong> for each day after the due date.</li>
+    <li>Fine is calculated at return time (for returned books) or on demand (for overdue issued books).</li>
+    <li>Students can <strong>pay online</strong> (Razorpay); librarian can <strong>mark paid manually</strong> for cash/other modes.</li>
+    <li>Payment history and receipts are available.</li>
+  </ul>
+  <h3>3.5 QR Code Usage</h3>
+  <ul>
+    <li>Each <strong>book copy</strong> can have a <strong>QR code</strong> (book + copy number).</li>
+    <li>Librarian can <strong>scan QR</strong> to quickly issue or return that copy — reduces manual entry and errors.</li>
+  </ul>
+  <h3>3.6 Reports & Export</h3>
+  <ul>
+    <li>Librarian can <strong>export transaction data</strong> (issue/return) to <strong>CSV</strong>.</li>
+    <li>Librarian can <strong>export payment data</strong> to <strong>CSV</strong>.</li>
+    <li>Useful for institute records and audits.</li>
+  </ul>
+
+  <h2 class="page-break">4. What to Say Slide-by-Slide (Suggested)</h2>
+  <table>
+    <thead><tr><th>Slide</th><th>What to say</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1. Title</strong></td><td>“We built a web-based library system for our institute. It has two types of users: students and librarians. The idea is to digitize issue, return, fines, and payments.”</td></tr>
+      <tr><td><strong>2. Problem & Solution</strong></td><td>Problem: Manual issue/return, paper records, no online fine payment, hard to track overdue. Solution: One website where students and librarians do everything: issue, return, fines, online payment, and export of data.</td></tr>
+      <tr><td><strong>3. Who Uses It?</strong></td><td>Students: Login → dashboard (issued books, dues) → search books → history → pay fines online. Librarians: Login → add/manage books → issue/return (QR) → overdue → fine collection → export CSV, manage payments.</td></tr>
+      <tr><td><strong>4. How Does Issue Work?</strong></td><td>Librarian selects student and book (or scans QR). System checks availability and creates issue record with due date = 14 days. Available copies reduced by one. Student sees the book on dashboard.</td></tr>
+      <tr><td><strong>5. Return & Fine</strong></td><td>Librarian marks return. If late, fine = ₹5 × (days late). Student pays online (Razorpay) or librarian marks paid manually. Payments and receipts can be viewed and exported.</td></tr>
+      <tr><td><strong>6. Security</strong></td><td>Only institute emails (@iiitsurat.ac.in). Pre-approved list: only those can register. Role fixed at registration. Passwords secure; access token-based.</td></tr>
+      <tr><td><strong>7. Reports</strong></td><td>Librarian can export transactions and payments to CSV for record-keeping and audits.</td></tr>
+      <tr><td><strong>8. Summary</strong></td><td>One system for students (search, history, pay fines) and librarians (books, issue/return, overdue, fines, payments, export). Thank you.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. If They Ask “How Does It Work?” (No Code)</h2>
+  <ul>
+    <li><strong>User opens the website</strong> → browser talks to a <strong>server</strong>.</li>
+    <li><strong>Server</strong> checks <strong>database</strong> (where books, users, transactions, payments are stored).</li>
+    <li><strong>Student/Librarian</strong> see different screens based on their <strong>role</strong>.</li>
+    <li><strong>Issue:</strong> Server creates a record, updates “available copies,” sets due date.</li>
+    <li><strong>Return:</strong> Server updates the record, calculates fine.</li>
+    <li><strong>Payment:</strong> Student pays via Razorpay; server records payment and can update “paid” status.</li>
+    <li><strong>Export:</strong> Server reads data from database and generates CSV for download.</li>
+  </ul>
+
+  <h2>6. One-Page Cheat Sheet (Quick Reference)</h2>
+  <table>
+    <thead><tr><th>Topic</th><th>What to say</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Project name</strong></td><td>Library Management System for IIIT Surat</td></tr>
+      <tr><td><strong>Users</strong></td><td>Students and Librarians (role-based)</td></tr>
+      <tr><td><strong>Student</strong></td><td>Dashboard, search books, issue history, pay fines online</td></tr>
+      <tr><td><strong>Librarian</strong></td><td>Add/manage books, issue/return (QR), overdue, fines, export CSV, payments</td></tr>
+      <tr><td><strong>Issue</strong></td><td>Librarian selects student + book (or QR); due date 14 days; copies reduced</td></tr>
+      <tr><td><strong>Return</strong></td><td>Librarian marks return; fine ₹5/day if late</td></tr>
+      <tr><td><strong>Fine payment</strong></td><td>Online (Razorpay) or librarian marks paid manually</td></tr>
+      <tr><td><strong>Security</strong></td><td>Only @iiitsurat.ac.in; pre-approved list; role fixed at registration</td></tr>
+      <tr><td><strong>Export</strong></td><td>Transactions and payments to CSV for records</td></tr>
+    </tbody>
+  </table>
+
+  <hr />
+  <p style="color:#64748b; font-size:0.9rem;"><em>Use this guide to explain the <strong>flow and purpose</strong> of the system. Avoid code; focus on who does what, in what order, and what the system does with the data.</em></p>
+</body>
+</html>

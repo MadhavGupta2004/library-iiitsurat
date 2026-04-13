@@ -3,10 +3,12 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
 const connectDB = require('./config/db');
+const { runBookDueReminders, scheduleBookDueReminders } = require('./jobs/bookDueReminders');
 
-// Load env vars
-dotenv.config();
+// Load env from backend/.env regardless of where node was started (e.g. repo root)
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Connect to database
 connectDB();
@@ -39,6 +41,20 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'Library Management System API is running' });
 });
 
+// Trigger due-date / overdue emails (for external cron, e.g. cron-job.org, when host sleeps)
+app.post('/api/internal/due-reminders', async (req, res) => {
+    const secret = process.env.CRON_SECRET || process.env.DUE_REMINDER_CRON_SECRET;
+    if (!secret || req.get('x-cron-secret') !== secret) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+    try {
+        const result = await runBookDueReminders();
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+});
+
 // In production, serve frontend build and SPA fallback (must be after API routes)
 if (process.env.NODE_ENV === 'production') {
     const publicPath = path.join(__dirname, 'public');
@@ -61,3 +77,16 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
+function startDueReminderSchedule() {
+    try {
+        scheduleBookDueReminders();
+    } catch (e) {
+        console.error('[bookDueReminders] failed to schedule', e);
+    }
+}
+if (mongoose.connection.readyState === 1) {
+    startDueReminderSchedule();
+} else {
+    mongoose.connection.once('open', startDueReminderSchedule);
+}

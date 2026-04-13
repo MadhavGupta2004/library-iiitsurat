@@ -28,7 +28,7 @@ This guide deploys the app as **one service**: the Node backend serves the built
    ```bash
    git add .
    git commit -m "Initial commit"
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+   git remote add origin https://github.com/MadhavGupta2004/YOUR_REPO.git
    git branch -M main
    git push -u origin main
    ```
@@ -61,6 +61,7 @@ This guide deploys the app as **one service**: the Node backend serves the built
    | `JWT_SECRET` | A long random string (e.g. use a password generator) |
    | `JWT_EXPIRE` | `7d` |
    | `PORT` | *(Render sets this automatically; optional to set)* |
+   | `CLIENT_URL` | *(Optional)* Your public site URL for password-reset emails. If omitted on Render, **`RENDER_EXTERNAL_URL`** is used automatically so reset links work from any device. Set `CLIENT_URL` if you add a **custom domain**. |
 
    If you use Razorpay for payments, also add:
 
@@ -68,6 +69,18 @@ This guide deploys the app as **one service**: the Node backend serves the built
    |----|--------|
    | `RAZORPAY_KEY_ID` | Your key |
    | `RAZORPAY_KEY_SECRET` | Your secret |
+
+   For **email reminders** (due tomorrow + overdue), also add:
+
+   | Key | Value |
+   |----|--------|
+   | `SMTP_HOST` | e.g. `smtp.gmail.com` |
+   | `SMTP_PORT` | `587` |
+   | `SMTP_SECURE` | `false` |
+   | `SMTP_USER` | Your SMTP username |
+   | `SMTP_PASS` | App password or SMTP secret |
+   | `SMTP_FROM` | Optional display from, e.g. `"IIIT Surat Library" <you@gmail.com>` |
+   | `CRON_SECRET` | Long random string (for external cron, see below) |
 
 6. Click **Create Web Service**. Render will install deps, build the frontend, copy it into `backend/public`, and start the backend.
 7. When the deploy finishes, open the service URL (e.g. `https://library-iiitsurat.onrender.com`). You should see the app (login/register).
@@ -92,6 +105,12 @@ This guide deploys the app as **one service**: the Node backend serves the built
 3. **Free tier**  
    On the free tier, the service may sleep after inactivity. The first request after sleep can take 30–60 seconds.
 
+4. **Due-date emails on free tier**  
+   In-app cron runs only while the server is awake. On Render free, the app sleeps, so schedule emails with an **external cron** (e.g. [cron-job.org](https://cron-job.org)) **POST** once per day to:
+   `https://your-app.onrender.com/api/internal/due-reminders`  
+   Header: `x-cron-secret: <same value as CRON_SECRET in Render env>`.  
+   Body can be empty. This runs the same reminder logic as the daily job.
+
 ---
 
 ## 5. Local production build (optional)
@@ -106,6 +125,46 @@ NODE_ENV=production npm start
 ```
 
 Then open `http://localhost:5000`. The same app will be served as on Render.
+
+---
+
+## 6. Modifying / updating a deploy (Render)
+
+Use this whenever you change code or need different settings on the live site.
+
+### A. Deploy new code (most common)
+
+1. Commit and push to the **same GitHub branch** Render is connected to (usually `main`):
+   ```bash
+   git add .
+   git commit -m "Describe your change"
+   git push origin main
+   ```
+2. Open [Render Dashboard](https://dashboard.render.com) → your **Web Service**.
+3. Render usually **auto-deploys** after a push. If not: open the service → **Manual Deploy** → **Deploy latest commit**.
+4. Wait for the build to finish (green). Open your site URL and hard-refresh (`Ctrl+Shift+R`) if the UI looks old.
+
+### B. Change environment variables (no code change)
+
+1. Render Dashboard → your service → **Environment**.
+2. Add, edit, or delete variables (e.g. `SMTP_*`, `CRON_SECRET`, `CLIENT_URL`, `MONGODB_URI`).
+3. Click **Save Changes**. Render will **redeploy** automatically so the new values apply.
+
+### C. Change build or start command
+
+1. Service → **Settings**.
+2. Edit **Build Command** or **Start Command** (should stay `npm run install:all && npm run build` and `npm start` unless you know what you’re changing).
+3. **Save** → triggers a new deploy.
+
+### D. Change connected repo or branch
+
+1. Service → **Settings** → **Build & Deploy**.
+2. Adjust **Repository** or **Branch**, then save / deploy.
+
+### E. Custom domain (optional)
+
+1. Service → **Settings** → **Custom Domains** → add your domain and follow Render’s DNS instructions.
+2. Set **`CLIENT_URL`** to that domain (e.g. `https://library.iiitsurat.ac.in`) so password-reset emails use the correct link.
 
 ---
 

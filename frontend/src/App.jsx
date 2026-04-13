@@ -6,6 +6,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Auth pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // Student pages
 import StudentDashboard from './pages/student/Dashboard';
@@ -52,6 +54,8 @@ function AppRoutes() {
                 path="/register"
                 element={user ? <Navigate to={`/${user.role}/dashboard`} replace /> : <Register />}
             />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Student routes */}
             <Route
