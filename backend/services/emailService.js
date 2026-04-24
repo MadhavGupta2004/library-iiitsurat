@@ -26,25 +26,58 @@ function isEmailConfigured() {
 
 function getTransporter() {
     if (!isEmailConfigured()) return null;
+    const user = trimEnvQuotes(process.env.SMTP_USER);
+    const pass = trimEnvQuotes(process.env.SMTP_PASS).replace(/\s+/g, '');
+    const timeouts = {
+        connectionTimeout: 25_000,
+        greetingTimeout: 15_000,
+        socketTimeout: 25_000,
+    };
+
+    const hostRaw = (process.env.SMTP_HOST || '').trim().toLowerCase();
+    const forceHostTransport = process.env.SMTP_FORCE_HOST_TRANSPORT === 'true';
+    const useGmailService =
+        !forceHostTransport &&
+        (process.env.SMTP_USE_GMAIL_SERVICE === 'true' ||
+            !hostRaw ||
+            hostRaw === 'smtp.gmail.com' ||
+            hostRaw === 'smtp-relay.gmail.com');
+
+    // Nodemailer "gmail" service often works on Render when raw host:587 fails
+    if (useGmailService) {
+        return nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user, pass },
+            ...timeouts,
+        });
+    }
+
     const port = Number(process.env.SMTP_PORT) || 587;
     const secure = process.env.SMTP_SECURE === 'true';
     const opts = {
         host: process.env.SMTP_HOST?.trim(),
         port,
         secure,
-        auth: {
-            user: trimEnvQuotes(process.env.SMTP_USER),
-            pass: trimEnvQuotes(process.env.SMTP_PASS).replace(/\s+/g, ''),
-        },
-        connectionTimeout: 25_000,
-        greetingTimeout: 15_000,
-        socketTimeout: 25_000,
+        auth: { user, pass },
+        ...timeouts,
     };
-    // Gmail on 587: STARTTLS (fixes many "Invalid login" / connection issues on cloud hosts)
     if (!secure && port === 587) {
         opts.requireTLS = true;
     }
     return nodemailer.createTransport(opts);
+}
+
+/** Readable SMTP error for API responses / logs */
+function formatSmtpError(err) {
+    const parts = [
+        err?.message,
+        err?.code,
+        err?.responseCode != null ? `code=${err.responseCode}` : null,
+        typeof err?.response === 'string' ? err.response : null,
+        err?.command,
+    ].filter(Boolean);
+    const s = parts.join(' | ') || String(err);
+    return s.slice(0, 800);
 }
 
 async function sendMail({ to, subject, text, html }) {
@@ -150,6 +183,7 @@ ${localhostHtml}
 
 module.exports = {
     isEmailConfigured,
+    formatSmtpError,
     sendPreDueReminder,
     sendOverdueNotice,
     sendPasswordResetEmail,

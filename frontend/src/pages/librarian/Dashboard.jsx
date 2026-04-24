@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import DashboardLayout from '../../components/DashboardLayout';
 import { HiOutlineBookOpen, HiOutlineUsers, HiOutlineClipboardCheck, HiOutlineExclamationCircle, HiOutlineCurrencyRupee } from 'react-icons/hi';
@@ -6,10 +7,12 @@ import { HiOutlineBookOpen, HiOutlineUsers, HiOutlineClipboardCheck, HiOutlineEx
 const LibrarianDashboard = () => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const location = useLocation();
 
     useEffect(() => {
         const fetchStats = async () => {
             try {
+                setLoading(true);
                 const res = await api.get('/transactions/stats');
                 setStats(res.data);
             } catch (err) {
@@ -19,7 +22,7 @@ const LibrarianDashboard = () => {
             }
         };
         fetchStats();
-    }, []);
+    }, [location.key]);
 
     if (loading) {
         return (

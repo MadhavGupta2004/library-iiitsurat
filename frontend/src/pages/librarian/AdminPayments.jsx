@@ -25,7 +25,7 @@ const AdminPayments = () => {
     const fetchPayments = async () => {
         try {
             const queryParams = new URLSearchParams(filters).toString();
-            const res = await api.get(`/api/payment/all?${queryParams}`);
+            const res = await api.get(`/payment/all?${queryParams}`);
             setPayments(res.data);
 
             // Calculate stats
@@ -45,7 +45,7 @@ const AdminPayments = () => {
 
     const handleExport = async () => {
         try {
-            const response = await api.get('/api/payment/export', {
+            const response = await api.get('/payment/export', {
                 responseType: 'blob',
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -60,15 +60,17 @@ const AdminPayments = () => {
         }
     };
 
-    const markPaidManually = async (userId, amount) => {
-        if (!window.confirm(`Mark fine of ₹${amount} as paid for this student?`)) return;
+    const confirmPaymentReceived = async (paymentId, studentName, amount) => {
+        if (!window.confirm(`Confirm ₹${amount} received from ${studentName || 'this student'}? Their fine will be cleared.`)) {
+            return;
+        }
 
         try {
-            await api.post('/api/payment/mark-paid', { userId, amount });
-            toast.success('Fine marked as paid');
+            await api.post(`/payment/confirm/${paymentId}`);
+            toast.success('Payment confirmed');
             fetchPayments();
         } catch (err) {
-            toast.error('Operation failed');
+            toast.error(err.response?.data?.message || 'Could not confirm');
         }
     };
 
@@ -206,10 +208,10 @@ const AdminPayments = () => {
                                     <td className="px-6 py-4 text-right">
                                         {p.status === 'pending' && (
                                             <button
-                                                onClick={() => markPaidManually(p.user?._id, p.amount)}
+                                                onClick={() => confirmPaymentReceived(p._id, p.user?.name, p.amount)}
                                                 className="text-xs font-bold text-primary-600 hover:text-primary-700 uppercase tracking-tight"
                                             >
-                                                Mark Paid
+                                                Confirm received
                                             </button>
                                         )}
                                     </td>

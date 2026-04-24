@@ -1,6 +1,24 @@
 const Transaction = require('../models/Transaction');
 const Book = require('../models/Book');
 const User = require('../models/User');
+const Payment = require('../models/Payment');
+
+async function sumSuccessfulPayments() {
+    const r = await Payment.aggregate([
+        { $match: { status: 'success' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    return r[0]?.total || 0;
+}
+
+/** Rupees for returning after due (same rules as Transaction.calculateFine for returned) */
+function lateReturnFineRupees(returnDate, dueDate) {
+    if (!returnDate || !dueDate) return 0;
+    if (new Date(returnDate) <= new Date(dueDate)) return 0;
+    const diffTime = Math.abs(new Date(returnDate) - new Date(dueDate));
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays * 5;
+}
 
 // @desc    Issue a book (via QR scan)
 // @route   POST /api/transactions/issue
@@ -111,7 +129,6 @@ const getMyTransactions = async (req, res) => {
             .populate('book', 'title author isbn image')
             .sort({ createdAt: -1 });
 
-        // Auto-calculate fines for active issues
         const updated = transactions.map((t) => {
             const obj = t.toObject();
             if (obj.status === 'issued' && new Date() > new Date(obj.dueDate)) {
@@ -119,6 +136,13 @@ const getMyTransactions = async (req, res) => {
                 const diffTime = Math.abs(new Date() - new Date(obj.dueDate));
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 obj.fine = diffDays * 5;
+            }
+            // Per-book context: `fine` is outstanding on this line (0 after payment). Late fee for that return
+            // is still derivable from dates so issue history can show "which book" + amount paid/owed.
+            if (obj.status === 'returned') {
+                obj.lateReturnFine = lateReturnFineRupees(obj.returnDate, obj.dueDate);
+            } else {
+                obj.lateReturnFine = 0;
             }
             return obj;
         });
@@ -162,16 +186,13 @@ const getOverdueBooks = async (req, res) => {
 // @access  Private/Librarian
 const getFineCollection = async (req, res) => {
     try {
-        // Returned transactions with fines
-        const paidFines = await Transaction.find({
-            status: 'returned',
-            fine: { $gt: 0 },
-        })
+        // Money actually received (UPI, cash, legacy online) — not transaction.fine, which is cleared when paid
+        const totalCollected = await sumSuccessfulPayments();
+        const collectedPayments = await Payment.find({ status: 'success' })
             .populate('user', 'name email')
-            .populate('book', 'title author isbn')
-            .sort({ returnDate: -1 });
-
-        const totalCollected = paidFines.reduce((sum, t) => sum + t.fine, 0);
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .lean();
 
         // Pending fines (overdue but not returned)
         const overdueTransactions = await Transaction.find({
@@ -194,7 +215,9 @@ const getFineCollection = async (req, res) => {
         res.json({
             totalCollected,
             totalPending,
-            paidFines,
+            collectedPayments,
+            /** @deprecated use collectedPayments; kept for older clients */
+            paidFines: [],
             pendingFines,
         });
     } catch (error) {
@@ -256,17 +279,14 @@ const getDashStats = async (req, res) => {
                 status: 'issued',
                 dueDate: { $lt: new Date() },
             });
-            const totalFines = await Transaction.aggregate([
-                { $match: { status: 'returned', fine: { $gt: 0 } } },
-                { $group: { _id: null, total: { $sum: '$fine' } } },
-            ]);
+            const totalFinesCollected = await sumSuccessfulPayments();
 
             res.json({
                 totalBooks,
                 totalUsers,
                 activeIssues,
                 overdueCount,
-                totalFinesCollected: totalFines[0]?.total || 0,
+                totalFinesCollected,
             });
         } else {
             // Student stats

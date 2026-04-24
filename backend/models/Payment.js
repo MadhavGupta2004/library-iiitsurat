@@ -27,8 +27,15 @@ const paymentSchema = new mongoose.Schema(
         },
         paymentMethod: {
             type: String,
-            enum: ['online', 'offline'],
-            default: 'online',
+            enum: ['online', 'offline', 'upi'],
+            default: 'upi',
+        },
+        confirmedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        confirmedAt: {
+            type: Date,
         },
         receiptUrl: {
             type: String,

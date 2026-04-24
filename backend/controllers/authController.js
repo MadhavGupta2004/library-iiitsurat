@@ -4,6 +4,7 @@ const User = require('../models/User');
 const AllowedUser = require('../models/AllowedUser');
 const {
     isEmailConfigured,
+    formatSmtpError,
     sendPasswordResetEmail,
 } = require('../services/emailService');
 
@@ -214,9 +215,9 @@ const forgotPassword = async (req, res) => {
             });
             return res.status(502).json({
                 message:
-                    'Could not send the reset email. On Render, set SMTP_HOST, SMTP_USER, SMTP_PASS (Gmail App Password, 16 chars, no spaces), and SMTP_FROM to the same Gmail as SMTP_USER.',
+                    'Could not send the reset email. Use a Gmail App Password (16 chars, no spaces) for SMTP_PASS; SMTP_USER and the address inside SMTP_FROM must be that same Gmail. If Google emailed you about a blocked sign-in, allow access for mail.',
                 code: 'EMAIL_SEND_FAILED',
-                detail: String(emailErr.message || emailErr).slice(0, 500),
+                detail: formatSmtpError(emailErr),
             });
         }
 

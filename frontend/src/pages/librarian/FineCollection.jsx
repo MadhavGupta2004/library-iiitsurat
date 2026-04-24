@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import DashboardLayout from '../../components/DashboardLayout';
 import { HiOutlineCurrencyRupee } from 'react-icons/hi';
@@ -6,10 +7,12 @@ import { HiOutlineCurrencyRupee } from 'react-icons/hi';
 const FineCollection = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const location = useLocation();
 
     useEffect(() => {
         const fetchFines = async () => {
             try {
+                setLoading(true);
                 const res = await api.get('/transactions/fines');
                 setData(res.data);
             } catch (err) {
@@ -19,7 +22,7 @@ const FineCollection = () => {
             }
         };
         fetchFines();
-    }, []);
+    }, [location.key]);
 
     if (loading) {
         return (
@@ -52,33 +55,41 @@ const FineCollection = () => {
                     </div>
                 </div>
 
-                {/* Paid Fines Table */}
-                {data?.paidFines?.length > 0 && (
+                {/* Successful payments (fines actually received) */}
+                {data?.collectedPayments?.length > 0 && (
                     <div>
-                        <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-3">Collected Fines</h2>
+                        <h2 className="text-lg font-semibold text-surface-900 dark:text-white mb-3">Received payments</h2>
                         <div className="table-container">
                             <table className="w-full">
                                 <thead>
                                     <tr className="table-header">
                                         <th className="px-6 py-4 text-left">Student</th>
-                                        <th className="px-6 py-4 text-left">Book</th>
-                                        <th className="px-6 py-4 text-left">Return Date</th>
-                                        <th className="px-6 py-4 text-right">Fine</th>
+                                        <th className="px-6 py-4 text-left">Date</th>
+                                        <th className="px-6 py-4 text-left">Method</th>
+                                        <th className="px-6 py-4 text-right">Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-surface-800">
-                                    {data.paidFines.map((t) => (
-                                        <tr key={t._id} className="table-row">
+                                    {data.collectedPayments.map((p) => (
+                                        <tr key={p._id} className="table-row">
                                             <td className="px-6 py-4">
-                                                <p className="font-medium text-surface-900 dark:text-white text-sm">{t.user?.name}</p>
-                                                <p className="text-xs text-surface-500">{t.user?.email}</p>
+                                                <p className="font-medium text-surface-900 dark:text-white text-sm">{p.user?.name}</p>
+                                                <p className="text-xs text-surface-500">{p.user?.email}</p>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-surface-700 dark:text-surface-300">{t.book?.title}</td>
                                             <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-300">
-                                                {new Date(t.returnDate).toLocaleDateString('en-IN')}
+                                                {new Date(p.createdAt).toLocaleString('en-IN', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm capitalize text-surface-600 dark:text-surface-300">
+                                                {p.paymentMethod}
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">₹{t.fine}</span>
+                                                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">₹{p.amount}</span>
                                             </td>
                                         </tr>
                                     ))}
@@ -124,7 +135,7 @@ const FineCollection = () => {
                     </div>
                 )}
 
-                {(data?.paidFines?.length === 0 && data?.pendingFines?.length === 0) && (
+                {(data?.collectedPayments?.length === 0 && data?.pendingFines?.length === 0) && (
                     <div className="text-center py-16 text-surface-400">
                         <HiOutlineCurrencyRupee className="w-16 h-16 mx-auto mb-4 opacity-50" />
                         <p className="text-lg">No fine records</p>

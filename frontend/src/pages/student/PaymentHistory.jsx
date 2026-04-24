@@ -11,7 +11,7 @@ const PaymentHistory = () => {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const res = await api.get('/api/payment/history');
+                const res = await api.get('/payment/history');
                 setPayments(res.data);
             } catch (err) {
                 console.error(err);
@@ -25,7 +25,7 @@ const PaymentHistory = () => {
 
     const downloadReceipt = async (paymentId) => {
         try {
-            const response = await api.get(`/api/payment/receipt/${paymentId}`, {
+            const response = await api.get(`/payment/receipt/${paymentId}`, {
                 responseType: 'blob',
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -116,7 +116,7 @@ const PaymentHistory = () => {
                                             {p.paymentMethod}
                                         </td>
                                         <td className="px-6 py-4 text-xs font-mono text-surface-500">
-                                            {p.razorpayPaymentId || '—'}
+                                            {p.razorpayPaymentId || (p.paymentMethod === 'upi' ? String(p._id) : '—')}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             {p.status === 'success' && (

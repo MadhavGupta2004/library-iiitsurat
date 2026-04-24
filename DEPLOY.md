@@ -63,12 +63,12 @@ This guide deploys the app as **one service**: the Node backend serves the built
    | `PORT` | *(Render sets this automatically; optional to set)* |
    | `CLIENT_URL` | *(Optional)* Your public site URL for password-reset emails. If omitted on Render, **`RENDER_EXTERNAL_URL`** is used automatically so reset links work from any device. Set `CLIENT_URL` if you add a **custom domain**. |
 
-   If you use Razorpay for payments, also add:
+   For **UPI (QR / VPA) fine payments**, also add:
 
    | Key | Value |
    |----|--------|
-   | `RAZORPAY_KEY_ID` | Your key |
-   | `RAZORPAY_KEY_SECRET` | Your secret |
+   | `UPI_MERCHANT_VPA` | Library’s UPI ID (e.g. `name@ybl`, `name@okaxis`) |
+   | `UPI_MERCHANT_NAME` | *(Optional)* Shown in UPI apps, e.g. `IIIT Surat Library` |
 
    For **email reminders** (due tomorrow + overdue), also add:
 
