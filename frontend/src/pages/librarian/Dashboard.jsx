@@ -60,7 +60,7 @@ const LibrarianDashboard = () => {
             gradient: 'from-emerald-500 to-emerald-600',
         },
         {
-            label: 'Overdue Books',
+            label: 'Overdue (fee still due)',
             value: stats?.overdueCount || 0,
             icon: HiOutlineExclamationCircle,
             color: 'text-red-600 dark:text-red-400',

@@ -30,7 +30,7 @@ const getStudents = async (req, res) => {
 
         // Count currently issued books per student
         const issuedCounts = await Transaction.aggregate([
-            { $match: { status: 'issued', user: { $in: studentIds } } },
+            { $match: { status: { $in: ['issued', 'overdue'] }, user: { $in: studentIds } } },
             { $group: { _id: '$user', count: { $sum: 1 } } },
         ]);
 
@@ -64,7 +64,7 @@ const getStudentIssuedBooks = async (req, res) => {
 
         const transactions = await Transaction.find({
             user: req.params.id,
-            status: 'issued',
+            status: { $in: ['issued', 'overdue'] },
         })
             .populate('book', 'title author isbn')
             .sort({ issueDate: -1 })
@@ -80,8 +80,14 @@ const getStudentIssuedBooks = async (req, res) => {
                 isOverdue: new Date(t.dueDate) < new Date(),
             };
             if (obj.isOverdue) {
-                const diffDays = Math.ceil((new Date() - new Date(t.dueDate)) / (1000 * 60 * 60 * 24));
-                obj.fine = diffDays * 5;
+                if (t.overdueAccrualClearedAt) {
+                    obj.fine = 0;
+                } else {
+                    const diffDays = Math.ceil(
+                        (new Date() - new Date(t.dueDate)) / (1000 * 60 * 60 * 24)
+                    );
+                    obj.fine = diffDays * 5;
+                }
             } else {
                 obj.fine = 0;
             }

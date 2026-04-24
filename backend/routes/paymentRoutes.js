@@ -8,6 +8,7 @@ const {
     markPaidManually,
     downloadReceipt,
     exportPaymentsCSV,
+    repairStudentFines,
 } = require('../controllers/paymentController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -16,6 +17,7 @@ router.post('/confirm/:paymentId', protect, authorize('librarian'), confirmUpiPa
 router.get('/history', protect, getMyPayments);
 router.get('/all', protect, authorize('librarian'), getAllPayments);
 router.post('/mark-paid', protect, authorize('librarian'), markPaidManually);
+router.post('/repair/:userId', protect, authorize('librarian'), repairStudentFines);
 router.get('/receipt/:id', protect, downloadReceipt);
 router.get('/export', protect, authorize('librarian'), exportPaymentsCSV);
 

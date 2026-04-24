@@ -2,40 +2,60 @@ const PDFDocument = require('pdfkit');
 const Payment = require('../models/Payment');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-
-async function getCurrentFineForUserId(userId) {
-    const overdueBooks = await Transaction.find({
-        user: userId,
-        status: 'issued',
-        dueDate: { $lt: new Date() },
-    });
-
-    let currentFine = 0;
-    overdueBooks.forEach((t) => {
-        const diffTime = Math.abs(new Date() - new Date(t.dueDate));
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        currentFine += diffDays * 5;
-    });
-
-    const returnedFines = await Transaction.aggregate([
-        { $match: { user: userId, status: 'returned', fine: { $gt: 0 } } },
-        { $group: { _id: null, total: { $sum: '$fine' } } },
-    ]);
-
-    currentFine += returnedFines[0]?.total || 0;
-    return currentFine;
-}
+const {
+    getTotalFineOwedForStudent,
+    buildCoveredFinesSummaryForIntent,
+    toObjectId,
+    userIdFilter,
+} = require('../utils/studentFine');
 
 async function applyPaymentSuccess(payment) {
-    const user = await User.findById(payment.user);
-    user.fineAmount = 0;
-    user.paymentHistory.push(payment._id);
-    await user.save();
+    const uid = toObjectId(
+        payment.user?._id != null ? payment.user._id : payment.user
+    );
+    if (!uid) {
+        throw new Error('Invalid user on payment');
+    }
+    const user = await User.findById(uid);
+    if (!user) {
+        throw new Error('User not found for this payment');
+    }
 
-    await Transaction.updateMany(
-        { user: payment.user, status: 'returned', fine: { $gt: 0 } },
+    const now = new Date();
+    const r0 = await Transaction.updateMany(
+        {
+            $and: [userIdFilter(uid), { status: 'returned' }, { fine: { $gt: 0 } }],
+        },
         { $set: { fine: 0 } }
     );
+    const r1 = await Transaction.updateMany(
+        {
+            $and: [
+                userIdFilter(uid),
+                { status: { $in: ['issued', 'overdue'] } },
+                { dueDate: { $lt: now } },
+            ],
+        },
+        { $set: { overdueAccrualClearedAt: now } }
+    );
+
+    user.fineAmount = 0;
+    const payId = String(payment._id);
+    if (!user.paymentHistory.some((id) => String(id) === payId)) {
+        user.paymentHistory.push(payment._id);
+    }
+    await user.save();
+
+    const still = await getTotalFineOwedForStudent(uid);
+    if (still > 0) {
+        console.error('[applyPaymentSuccess] Fines still owed after clear', {
+            userId: String(uid),
+            still,
+            paymentId: String(payment._id),
+            modifiedReturned: r0.modifiedCount,
+            modifiedAccrual: r1.modifiedCount,
+        });
+    }
 }
 
 // @desc    Create pending UPI payment and return QR payload + VPA
@@ -52,7 +72,7 @@ const createUpiIntent = async (req, res) => {
             });
         }
 
-        const currentFine = await getCurrentFineForUserId(req.user._id);
+        const currentFine = await getTotalFineOwedForStudent(req.user._id);
 
         if (currentFine <= 0) {
             return res.status(400).json({ message: 'No fine to pay' });
@@ -63,11 +83,13 @@ const createUpiIntent = async (req, res) => {
             { $set: { status: 'failed' } }
         );
 
+        const coveredItemsSummary = await buildCoveredFinesSummaryForIntent(req.user._id);
         const payment = await Payment.create({
             user: req.user._id,
             amount: currentFine,
             status: 'pending',
             paymentMethod: 'upi',
+            coveredItemsSummary,
         });
 
         const am = currentFine.toFixed(2);
@@ -104,12 +126,12 @@ const confirmUpiPayment = async (req, res) => {
             return res.status(400).json({ message: 'This payment is not pending confirmation' });
         }
 
+        await applyPaymentSuccess(payment);
+
         payment.status = 'success';
         payment.confirmedBy = req.user._id;
         payment.confirmedAt = new Date();
         await payment.save();
-
-        await applyPaymentSuccess(payment);
 
         res.json({ message: 'Payment marked as received', payment });
     } catch (error) {
@@ -178,14 +200,12 @@ const markPaidManually = async (req, res) => {
             confirmedAt: new Date(),
         });
 
-        user.fineAmount = 0;
-        user.paymentHistory.push(payment._id);
-        await user.save();
-
-        await Transaction.updateMany(
-            { user: userId, status: 'returned', fine: { $gt: 0 } },
-            { $set: { fine: 0 } }
-        );
+        try {
+            await applyPaymentSuccess(payment);
+        } catch (e) {
+            await Payment.findByIdAndUpdate(payment._id, { status: 'failed' });
+            throw e;
+        }
 
         res.json({ message: 'Fine marked as paid successfully', payment });
     } catch (error) {
@@ -297,6 +317,48 @@ const exportPaymentsCSV = async (req, res) => {
     }
 };
 
+// @desc    Re-run fine clearing for a student (fixes stuck state from old broken confirms)
+// @route   POST /api/payment/repair/:userId
+// @access  Private/Librarian
+const repairStudentFines = async (req, res) => {
+    try {
+        const uid = toObjectId(req.params.userId);
+        if (!uid) {
+            return res.status(400).json({ message: 'Invalid user id' });
+        }
+        const now = new Date();
+        const r0 = await Transaction.updateMany(
+            { $and: [userIdFilter(uid), { status: 'returned' }, { fine: { $gt: 0 } }] },
+            { $set: { fine: 0 } }
+        );
+        const r1 = await Transaction.updateMany(
+            {
+                $and: [
+                    userIdFilter(uid),
+                    { status: { $in: ['issued', 'overdue'] } },
+                    { dueDate: { $lt: now } },
+                ],
+            },
+            { $set: { overdueAccrualClearedAt: now } }
+        );
+        const user = await User.findById(uid);
+        if (user) {
+            user.fineAmount = 0;
+            await user.save();
+        }
+        const totalAfter = await getTotalFineOwedForStudent(uid);
+        res.json({
+            message: 'Repair applied',
+            modifiedReturned: r0.modifiedCount,
+            modifiedAccrual: r1.modifiedCount,
+            totalFineAfter: totalAfter,
+        });
+    } catch (error) {
+        console.error('repairStudentFines', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createUpiIntent,
     confirmUpiPayment,
@@ -305,5 +367,5 @@ module.exports = {
     markPaidManually,
     downloadReceipt,
     exportPaymentsCSV,
-    getCurrentFineForUserId,
+    repairStudentFines,
 };

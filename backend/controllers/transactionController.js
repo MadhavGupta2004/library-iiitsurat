@@ -2,6 +2,7 @@ const Transaction = require('../models/Transaction');
 const Book = require('../models/Book');
 const User = require('../models/User');
 const Payment = require('../models/Payment');
+const { getTotalFineOwedForStudent } = require('../utils/studentFine');
 
 async function sumSuccessfulPayments() {
     const r = await Payment.aggregate([
@@ -131,11 +132,18 @@ const getMyTransactions = async (req, res) => {
 
         const updated = transactions.map((t) => {
             const obj = t.toObject();
-            if (obj.status === 'issued' && new Date() > new Date(obj.dueDate)) {
+            const pastDue = new Date() > new Date(obj.dueDate);
+            const activeLate =
+                (obj.status === 'issued' || obj.status === 'overdue') && pastDue;
+            if (activeLate) {
                 obj.status = 'overdue';
-                const diffTime = Math.abs(new Date() - new Date(obj.dueDate));
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                obj.fine = diffDays * 5;
+                if (obj.overdueAccrualClearedAt) {
+                    obj.fine = 0;
+                } else {
+                    const diffTime = Math.abs(new Date() - new Date(obj.dueDate));
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    obj.fine = diffDays * 5;
+                }
             }
             // Per-book context: `fine` is outstanding on this line (0 after payment). Late fee for that return
             // is still derivable from dates so issue history can show "which book" + amount paid/owed.
@@ -159,7 +167,7 @@ const getMyTransactions = async (req, res) => {
 const getOverdueBooks = async (req, res) => {
     try {
         const overdueTransactions = await Transaction.find({
-            status: 'issued',
+            status: { $in: ['issued', 'overdue'] },
             dueDate: { $lt: new Date() },
         })
             .populate('user', 'name email')
@@ -168,9 +176,14 @@ const getOverdueBooks = async (req, res) => {
 
         const result = overdueTransactions.map((t) => {
             const obj = t.toObject();
-            const diffTime = Math.abs(new Date() - new Date(obj.dueDate));
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            obj.fine = diffDays * 5;
+            if (obj.overdueAccrualClearedAt) {
+                obj.fine = 0;
+                obj.lateFeeClearedByPayment = true;
+            } else {
+                const diffTime = Math.abs(new Date() - new Date(obj.dueDate));
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                obj.fine = diffDays * 5;
+            }
             obj.status = 'overdue';
             return obj;
         });
@@ -196,7 +209,7 @@ const getFineCollection = async (req, res) => {
 
         // Pending fines (overdue but not returned)
         const overdueTransactions = await Transaction.find({
-            status: 'issued',
+            status: { $in: ['issued', 'overdue'] },
             dueDate: { $lt: new Date() },
         })
             .populate('user', 'name email')
@@ -205,10 +218,14 @@ const getFineCollection = async (req, res) => {
         let totalPending = 0;
         const pendingFines = overdueTransactions.map((t) => {
             const obj = t.toObject();
-            const diffTime = Math.abs(new Date() - new Date(obj.dueDate));
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            obj.fine = diffDays * 5;
-            totalPending += obj.fine;
+            if (obj.overdueAccrualClearedAt) {
+                obj.fine = 0;
+            } else {
+                const diffTime = Math.abs(new Date() - new Date(obj.dueDate));
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                obj.fine = diffDays * 5;
+                totalPending += obj.fine;
+            }
             return obj;
         });
 
@@ -274,11 +291,19 @@ const getDashStats = async (req, res) => {
         if (req.user.role === 'librarian') {
             const totalBooks = await require('../models/Book').countDocuments();
             const totalUsers = await User.countDocuments({ role: 'student' });
-            const activeIssues = await Transaction.countDocuments({ status: 'issued' });
-            const overdueCount = await Transaction.countDocuments({
-                status: 'issued',
-                dueDate: { $lt: new Date() },
+            const activeIssues = await Transaction.countDocuments({
+                status: { $in: ['issued', 'overdue'] },
             });
+            // Past-due, still out, and late fee not yet covered by a recorded payment
+            const overdueWithPayableAccrual = {
+                status: { $in: ['issued', 'overdue'] },
+                dueDate: { $lt: new Date() },
+                $or: [
+                    { overdueAccrualClearedAt: { $exists: false } },
+                    { overdueAccrualClearedAt: null },
+                ],
+            };
+            const overdueCount = await Transaction.countDocuments(overdueWithPayableAccrual);
             const totalFinesCollected = await sumSuccessfulPayments();
 
             res.json({
@@ -289,10 +314,10 @@ const getDashStats = async (req, res) => {
                 totalFinesCollected,
             });
         } else {
-            // Student stats
+            // Student stats: active loans (DB may be "overdue" on older/corner records)
             const issuedBooks = await Transaction.countDocuments({
                 user: req.user._id,
-                status: 'issued',
+                status: { $in: ['issued', 'overdue'] },
             });
             const returnedBooks = await Transaction.countDocuments({
                 user: req.user._id,
@@ -300,24 +325,10 @@ const getDashStats = async (req, res) => {
             });
             const overdueBooks = await Transaction.find({
                 user: req.user._id,
-                status: 'issued',
+                status: { $in: ['issued', 'overdue'] },
                 dueDate: { $lt: new Date() },
             });
-
-            let totalFine = 0;
-            overdueBooks.forEach((t) => {
-                const diffTime = Math.abs(new Date() - new Date(t.dueDate));
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                totalFine += diffDays * 5;
-            });
-
-            // Add fines from returned books
-            const returnedFines = await Transaction.aggregate([
-                { $match: { user: req.user._id, status: 'returned', fine: { $gt: 0 } } },
-                { $group: { _id: null, total: { $sum: '$fine' } } },
-            ]);
-
-            totalFine += returnedFines[0]?.total || 0;
+            const totalFine = await getTotalFineOwedForStudent(req.user._id);
 
             res.json({
                 issuedBooks,

@@ -17,14 +17,23 @@ const Navbar = () => {
             const fetchFine = async () => {
                 try {
                     const res = await api.get('/transactions/stats');
-                    setFine(res.data.totalFine || 0);
+                    setFine(res.data?.totalFine ?? 0);
                 } catch (err) {
                     console.error('Failed to fetch fine for navbar:', err);
                 }
             };
             fetchFine();
+            const onVis = () => {
+                if (document.visibilityState === 'visible') fetchFine();
+            };
+            window.addEventListener('focus', fetchFine);
+            document.addEventListener('visibilitychange', onVis);
+            return () => {
+                window.removeEventListener('focus', fetchFine);
+                document.removeEventListener('visibilitychange', onVis);
+            };
         }
-    }, [user, location.pathname]);
+    }, [user, location.pathname, location.key]);
 
     const handleLogout = () => {
         logout();

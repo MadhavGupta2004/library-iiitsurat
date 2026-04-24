@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import DashboardLayout from '../../components/DashboardLayout';
 import { HiOutlineDocumentDownload, HiOutlineCurrencyRupee, HiOutlineCheckCircle, HiOutlineXCircle, HiOutlineClock } from 'react-icons/hi';
@@ -7,10 +8,12 @@ import toast from 'react-hot-toast';
 const PaymentHistory = () => {
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
+    const location = useLocation();
 
     useEffect(() => {
         const fetchHistory = async () => {
             try {
+                setLoading(true);
                 const res = await api.get('/payment/history');
                 setPayments(res.data);
             } catch (err) {
@@ -21,7 +24,7 @@ const PaymentHistory = () => {
             }
         };
         fetchHistory();
-    }, []);
+    }, [location.key]);
 
     const downloadReceipt = async (paymentId) => {
         try {
@@ -79,9 +82,10 @@ const PaymentHistory = () => {
                                 <tr className="table-header">
                                     <th className="px-6 py-4 text-left">Date</th>
                                     <th className="px-6 py-4 text-left">Amount</th>
+                                    <th className="px-6 py-4 text-left">What this was for</th>
                                     <th className="px-6 py-4 text-left">Status</th>
                                     <th className="px-6 py-4 text-left">Method</th>
-                                    <th className="px-6 py-4 text-left">Transaction ID</th>
+                                    <th className="px-6 py-4 text-left">Reference</th>
                                     <th className="px-6 py-4 text-right">Receipt</th>
                                 </tr>
                             </thead>
@@ -99,6 +103,9 @@ const PaymentHistory = () => {
                                         </td>
                                         <td className="px-6 py-4 text-sm font-bold text-surface-900 dark:text-white">
                                             ₹{p.amount}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-300 max-w-xs">
+                                            {p.coveredItemsSummary || '—'}
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-1.5 capitalize text-sm font-medium">

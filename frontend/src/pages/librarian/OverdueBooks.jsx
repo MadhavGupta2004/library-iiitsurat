@@ -7,17 +7,19 @@ const OverdueBooks = () => {
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    const fetchOverdue = async () => {
+        try {
+            setLoading(true);
+            const res = await api.get('/transactions/overdue');
+            setTransactions(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchOverdue = async () => {
-            try {
-                const res = await api.get('/transactions/overdue');
-                setTransactions(res.data);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchOverdue();
     }, []);
 
@@ -35,6 +37,12 @@ const OverdueBooks = () => {
         <DashboardLayout>
             <div className="space-y-6">
                 <h1 className="page-title">Overdue Books</h1>
+                <p className="text-sm text-surface-500 max-w-2xl">
+                    All loans past the due date that are still with the student. The dashboard <span className="font-medium">Overdue</span>{' '}
+                    count only includes copies where a <span className="font-medium">late fee is still due</span>. A row
+                    with <span className="font-medium">₹0</span> means the accrual was paid — the copy may still be out for
+                    return.
+                </p>
 
                 {transactions.length === 0 ? (
                     <div className="text-center py-16 text-surface-400">
@@ -77,8 +85,12 @@ const OverdueBooks = () => {
                                             <td className="px-6 py-4">
                                                 <span className="badge-red">{daysOverdue} days</span>
                                             </td>
-                                            <td className="px-6 py-4 text-right text-sm font-bold text-red-600 dark:text-red-400">
-                                                ₹{t.fine}
+                                            <td className="px-6 py-4 text-right text-sm">
+                                                {t.lateFeeClearedByPayment || t.fine === 0 ? (
+                                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">₹0</span>
+                                                ) : (
+                                                    <span className="font-bold text-red-600 dark:text-red-400">₹{t.fine}</span>
+                                                )}
                                             </td>
                                         </tr>
                                     );

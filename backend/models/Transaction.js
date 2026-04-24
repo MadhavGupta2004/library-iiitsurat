@@ -36,6 +36,15 @@ const transactionSchema = new mongoose.Schema(
             enum: ['issued', 'returned', 'overdue'],
             default: 'issued',
         },
+        /**
+         * Set when a library payment (UPI/confirmed/mark-paid) covers the running
+         * late fee for this copy while still issued + past due. Stops re-counting
+         * that accrual in totalFine; book may still be physically overdue.
+         */
+        overdueAccrualClearedAt: {
+            type: Date,
+            default: null,
+        },
         /** Set when "due tomorrow" reminder email was sent (avoid duplicates) */
         preDueReminderSentAt: {
             type: Date,

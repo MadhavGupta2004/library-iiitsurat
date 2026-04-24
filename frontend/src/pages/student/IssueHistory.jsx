@@ -24,10 +24,18 @@ function formatFineForRow(t) {
         );
     }
     if (t.status === 'overdue') {
+        if (outstanding > 0) {
+            return (
+                <div className="text-sm">
+                    <span className="font-semibold text-red-600 dark:text-red-400">₹{outstanding}</span>
+                    <p className="text-xs text-surface-500 mt-0.5">Accruing — pay &amp; return when due</p>
+                </div>
+            );
+        }
         return (
             <div className="text-sm">
-                <span className="font-semibold text-red-600 dark:text-red-400">₹{outstanding}</span>
-                <p className="text-xs text-surface-500 mt-0.5">Accruing until you return</p>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">₹0</span>
+                <p className="text-xs text-surface-500 mt-0.5">Late fee covered — book still past due, please return it</p>
             </div>
         );
     }

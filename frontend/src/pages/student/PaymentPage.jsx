@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import DashboardLayout from '../../components/DashboardLayout';
 import { HiOutlineCurrencyRupee, HiOutlineCheckCircle, HiOutlineExclamationCircle, HiOutlineDuplicate } from 'react-icons/hi';
@@ -11,11 +12,13 @@ const PaymentPage = () => {
     const [busy, setBusy] = useState(false);
     const [session, setSession] = useState(null);
     const [qrDataUrl, setQrDataUrl] = useState('');
+    const location = useLocation();
 
     const fetchFine = useCallback(async () => {
         try {
+            setLoading(true);
             const res = await api.get('/transactions/stats');
-            setFine(res.data.totalFine || 0);
+            setFine(res.data?.totalFine ?? 0);
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch fine details');
@@ -26,6 +29,18 @@ const PaymentPage = () => {
 
     useEffect(() => {
         fetchFine();
+    }, [fetchFine, location.key]);
+
+    useEffect(() => {
+        const onVis = () => {
+            if (document.visibilityState === 'visible') fetchFine();
+        };
+        window.addEventListener('focus', fetchFine);
+        document.addEventListener('visibilitychange', onVis);
+        return () => {
+            window.removeEventListener('focus', fetchFine);
+            document.removeEventListener('visibilitychange', onVis);
+        };
     }, [fetchFine]);
 
     useEffect(() => {

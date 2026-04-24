@@ -40,6 +40,11 @@ const paymentSchema = new mongoose.Schema(
         receiptUrl: {
             type: String,
         },
+        /** Snapshot of what the fine was for (book titles) when UPI intent was created */
+        coveredItemsSummary: {
+            type: String,
+            default: '',
+        },
     },
     { timestamps: true }
 );

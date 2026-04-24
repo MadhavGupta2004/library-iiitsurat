@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import DashboardLayout from '../../components/DashboardLayout';
 import { HiOutlineBookOpen, HiOutlineClock, HiOutlineExclamationCircle, HiOutlineCurrencyRupee } from 'react-icons/hi';
@@ -8,10 +8,12 @@ const StudentDashboard = () => {
     const [stats, setStats] = useState(null);
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const location = useLocation();
 
     useEffect(() => {
         const fetchData = async () => {
             try {
+                setLoading(true);
                 const [statsRes, transRes] = await Promise.all([
                     api.get('/transactions/stats'),
                     api.get('/transactions/my'),
@@ -25,7 +27,7 @@ const StudentDashboard = () => {
             }
         };
         fetchData();
-    }, []);
+    }, [location.key]);
 
     if (loading) {
         return (
