@@ -109,12 +109,26 @@ const ForgotPassword = () => {
                                         </pre>
                                     ) : null}
                                     <p className="text-xs text-rose-200/80 pt-1">
-                                        On Render: use Gmail <strong>App password</strong> (16 letters, no spaces) in{' '}
-                                        <code className="text-rose-100">SMTP_PASS</code>. Set{' '}
-                                        <code className="text-rose-100">SMTP_FROM</code> to the same address as{' '}
-                                        <code className="text-rose-100">SMTP_USER</code>. Use{' '}
-                                        <code className="text-rose-100">SMTP_PORT=587</code> and{' '}
-                                        <code className="text-rose-100">SMTP_SECURE=false</code>.
+                                        {smtpError.code === 'SMTP_BLOCKED' ||
+                                        /ETIMEDOUT|connection timeout|SMTP_BLOCKED/i.test(
+                                            `${smtpError.detail || ''} ${smtpError.message || ''}`
+                                        ) ? (
+                                            <>
+                                                Render <strong>free</strong> blocks Gmail SMTP. Add{' '}
+                                                <code className="text-rose-100">RESEND_API_KEY</code> and{' '}
+                                                <code className="text-rose-100">RESEND_FROM</code> in Render
+                                                Environment (see DEPLOY.md), redeploy, then try again. Or upgrade
+                                                to a paid Render instance.
+                                            </>
+                                        ) : (
+                                            <>
+                                                Prefer <code className="text-rose-100">RESEND_API_KEY</code> on
+                                                Render free. For local SMTP: Gmail App password (16 chars, no
+                                                spaces) in <code className="text-rose-100">SMTP_PASS</code>;{' '}
+                                                <code className="text-rose-100">SMTP_FROM</code> must match{' '}
+                                                <code className="text-rose-100">SMTP_USER</code>.
+                                            </>
+                                        )}
                                     </p>
                                 </div>
                             )}

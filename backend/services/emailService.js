@@ -15,7 +15,16 @@ function trimEnvQuotes(val) {
     return t;
 }
 
-function isEmailConfigured() {
+function getResendApiKey() {
+    return trimEnvQuotes(process.env.RESEND_API_KEY);
+}
+
+/** Prefer Resend (HTTPS) — works on Render free where SMTP ports are blocked */
+function isResendConfigured() {
+    return Boolean(getResendApiKey());
+}
+
+function isSmtpConfigured() {
     const pass = trimEnvQuotes(process.env.SMTP_PASS).replace(/\s+/g, '');
     return Boolean(
         process.env.SMTP_HOST?.trim() &&
@@ -24,8 +33,12 @@ function isEmailConfigured() {
     );
 }
 
+function isEmailConfigured() {
+    return isResendConfigured() || isSmtpConfigured();
+}
+
 function getTransporter() {
-    if (!isEmailConfigured()) return null;
+    if (!isSmtpConfigured()) return null;
     const user = trimEnvQuotes(process.env.SMTP_USER);
     const pass = trimEnvQuotes(process.env.SMTP_PASS).replace(/\s+/g, '');
     const timeouts = {
@@ -43,7 +56,7 @@ function getTransporter() {
             hostRaw === 'smtp.gmail.com' ||
             hostRaw === 'smtp-relay.gmail.com');
 
-    // Nodemailer "gmail" service often works on Render when raw host:587 fails
+    // Nodemailer "gmail" service often works on paid hosts when raw host:587 fails
     if (useGmailService) {
         return nodemailer.createTransport({
             service: 'gmail',
@@ -67,7 +80,28 @@ function getTransporter() {
     return nodemailer.createTransport(opts);
 }
 
-/** Readable SMTP error for API responses / logs */
+const RESEND_DEFAULT_FROM = `"${APP_NAME}" <onboarding@resend.dev>`;
+
+/** Resend sender: RESEND_FROM or onboarding@resend.dev (no domain verify needed for sender). */
+function resolveResendFrom() {
+    let from = process.env.RESEND_FROM?.trim() || RESEND_DEFAULT_FROM;
+    if (/^["'].*["']$/.test(from) && from.includes('@')) {
+        from = trimEnvQuotes(from);
+    }
+    return from;
+}
+
+function resolveSmtpFrom(fallbackEmail) {
+    let from =
+        process.env.SMTP_FROM?.trim() ||
+        (fallbackEmail ? `"${APP_NAME}" <${fallbackEmail}>` : RESEND_DEFAULT_FROM);
+    if (/^["'].*["']$/.test(from) && from.includes('@')) {
+        from = trimEnvQuotes(from);
+    }
+    return from;
+}
+
+/** Readable SMTP / API error for API responses / logs */
 function formatSmtpError(err) {
     const parts = [
         err?.message,
@@ -80,20 +114,75 @@ function formatSmtpError(err) {
     return s.slice(0, 800);
 }
 
-async function sendMail({ to, subject, text, html }) {
+function isSmtpConnectionBlockedError(err) {
+    const code = String(err?.code || '');
+    const msg = String(err?.message || '').toLowerCase();
+    return (
+        code === 'ETIMEDOUT' ||
+        code === 'ECONNREFUSED' ||
+        code === 'ENETUNREACH' ||
+        code === 'ESOCKET' ||
+        msg.includes('connection timeout') ||
+        msg.includes('connect etimedout')
+    );
+}
+
+/**
+ * Send via Resend HTTPS API.
+ * `from` defaults to onboarding@resend.dev; `to` is always the caller-supplied address
+ * (e.g. the forgot-password form email) — no app-side recipient allowlist.
+ */
+async function sendViaResend({ to, subject, text, html, from, replyTo }) {
+    const apiKey = getResendApiKey();
+    const recipient = String(to || '')
+        .trim()
+        .toLowerCase();
+    if (!recipient || !recipient.includes('@')) {
+        const err = new Error('Resend: missing or invalid recipient (to)');
+        err.code = 'RESEND_INVALID_TO';
+        throw err;
+    }
+
+    const body = {
+        from: from || resolveResendFrom(),
+        to: [recipient],
+        subject,
+        text,
+        html,
+    };
+    if (replyTo) body.reply_to = replyTo;
+
+    const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const err = new Error(
+            data?.message ||
+                data?.error ||
+                `Resend API failed with status ${res.status}`
+        );
+        err.code = 'RESEND_API_ERROR';
+        err.responseCode = res.status;
+        err.response = typeof data === 'object' ? JSON.stringify(data) : String(data);
+        throw err;
+    }
+    return { sent: true, messageId: data?.id, provider: 'resend', to: recipient };
+}
+
+async function sendViaSmtp({ to, subject, text, html, from, replyTo }) {
     const transporter = getTransporter();
     if (!transporter) {
-        console.warn(
-            '[email] SMTP not configured (SMTP_HOST, SMTP_USER, SMTP_PASS); skipping send.'
-        );
-        return { skipped: true };
+        const err = new Error('SMTP not configured');
+        err.code = 'SMTP_NOT_CONFIGURED';
+        throw err;
     }
-    const smtpUser = trimEnvQuotes(process.env.SMTP_USER);
-    let from = process.env.SMTP_FROM?.trim() || `"${APP_NAME}" <${smtpUser}>`;
-    if (/^["'].*["']$/.test(from) && from.includes('@')) {
-        from = trimEnvQuotes(from);
-    }
-    const replyTo = smtpUser;
     const info = await transporter.sendMail({
         from,
         to,
@@ -102,7 +191,58 @@ async function sendMail({ to, subject, text, html }) {
         text,
         html,
     });
-    return { sent: true, messageId: info.messageId };
+    return { sent: true, messageId: info.messageId, provider: 'smtp' };
+}
+
+async function sendMail({ to, subject, text, html }) {
+    if (!isEmailConfigured()) {
+        console.warn(
+            '[email] No mail provider configured (set RESEND_API_KEY for Render free, or SMTP_* for local/paid). Skipping send.'
+        );
+        return { skipped: true };
+    }
+
+    const smtpUser = trimEnvQuotes(process.env.SMTP_USER);
+    const replyTo = smtpUser || undefined;
+
+    // HTTPS first — Render free blocks outbound SMTP (25/465/587) since Sep 2025
+    if (isResendConfigured()) {
+        try {
+            return await sendViaResend({
+                to,
+                subject,
+                text,
+                html,
+                from: resolveResendFrom(),
+                replyTo,
+            });
+        } catch (resendErr) {
+            console.error('[email] Resend send failed', formatSmtpError(resendErr));
+            if (!isSmtpConfigured()) throw resendErr;
+            console.warn('[email] Falling back to SMTP…');
+        }
+    }
+
+    try {
+        return await sendViaSmtp({
+            to,
+            subject,
+            text,
+            html,
+            from: resolveSmtpFrom(smtpUser || undefined),
+            replyTo,
+        });
+    } catch (smtpErr) {
+        if (isSmtpConnectionBlockedError(smtpErr)) {
+            const hint = new Error(
+                `${formatSmtpError(smtpErr)}. Render free web services block SMTP ports 25/465/587. Set RESEND_API_KEY (https://resend.com) and optionally RESEND_FROM (defaults to onboarding@resend.dev), then redeploy — or upgrade to a paid Render instance.`
+            );
+            hint.code = smtpErr.code || 'ETIMEDOUT';
+            hint.command = smtpErr.command;
+            throw hint;
+        }
+        throw smtpErr;
+    }
 }
 
 function formatDueDate(d) {
@@ -184,6 +324,7 @@ ${localhostHtml}
 module.exports = {
     isEmailConfigured,
     formatSmtpError,
+    isSmtpConnectionBlockedError,
     sendPreDueReminder,
     sendOverdueNotice,
     sendPasswordResetEmail,

@@ -32,7 +32,7 @@ function addOneISTCalendarDay(ymd) {
 async function runBookDueReminders() {
     if (!isEmailConfigured()) {
         console.log(
-            '[bookDueReminders] SMTP not configured; skipping (set SMTP_* in .env).'
+            '[bookDueReminders] Email not configured; skipping (set RESEND_API_KEY or SMTP_* in .env).'
         );
         return { skipped: true, preDue: 0, overdue: 0 };
     }

@@ -70,17 +70,28 @@ This guide deploys the app as **one service**: the Node backend serves the built
    | `UPI_MERCHANT_VPA` | Library’s UPI ID (e.g. `name@ybl`, `name@okaxis`) |
    | `UPI_MERCHANT_NAME` | *(Optional)* Shown in UPI apps, e.g. `IIIT Surat Library` |
 
-   For **email reminders** (due tomorrow + overdue), also add:
+   For **email** (forgot-password + due reminders), prefer **Resend** on Render free:
+
+   | Key | Value |
+   |----|--------|
+   | `RESEND_API_KEY` | API key from [resend.com](https://resend.com) (Dashboard → API Keys) |
+   | `RESEND_FROM` | *(Optional)* Defaults to `"IIIT Surat Library" <onboarding@resend.dev>`. Or a verified-domain address. |
+   | `CRON_SECRET` | Long random string (for external cron, see below) |
+
+   Forgot-password sends **to** the email the user enters (registered account). **From** is `onboarding@resend.dev` unless you override `RESEND_FROM`.
+
+   **Why not Gmail SMTP on free Render?** Since Sep 2025, Render **free** web services **block outbound SMTP** on ports `25`, `465`, and `587`. That shows up as `ETIMEDOUT` / `Connection timeout` — an App Password will not fix it. Resend uses HTTPS (port 443), which works on free tier.
+
+   Optional **SMTP** (works locally, or on **paid** Render):
 
    | Key | Value |
    |----|--------|
    | `SMTP_HOST` | e.g. `smtp.gmail.com` |
    | `SMTP_PORT` | `587` |
    | `SMTP_SECURE` | `false` |
-   | `SMTP_USER` | Your SMTP username |
-   | `SMTP_PASS` | App password or SMTP secret |
-   | `SMTP_FROM` | Optional display from, e.g. `"IIIT Surat Library" <you@gmail.com>` |
-   | `CRON_SECRET` | Long random string (for external cron, see below) |
+   | `SMTP_USER` | Your Gmail address |
+   | `SMTP_PASS` | Gmail App password (16 chars, no spaces) |
+   | `SMTP_FROM` | Must use the same Gmail, e.g. `"IIIT Surat Library" <you@gmail.com>` |
 
 6. Click **Create Web Service**. Render will install deps, build the frontend, copy it into `backend/public`, and start the backend.
 7. When the deploy finishes, open the service URL (e.g. `https://library-iiitsurat.onrender.com`). You should see the app (login/register).
@@ -107,8 +118,10 @@ This guide deploys the app as **one service**: the Node backend serves the built
 
 4. **Forgot password: no link in email (or nothing arrives)**  
    - **Success message but no mail:** The address may not be **registered** — the API does not reveal that; no email is sent. Use the **exact** `@iiitsurat.ac.in` you used at sign-up. Check Render **Logs** for `no registered user for`.  
-   - **Error toast / 502:** Fix **SMTP** on Render (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`). Gmail needs an **App password** (16 chars, no spaces). `SMTP_FROM` must match the Gmail used in `SMTP_USER`. The toast may show a **detail** line from the mail server.  
-   - **503:** SMTP env vars are missing.  
+   - **502 with `ETIMEDOUT` / Connection timeout:** Render **free** is blocking SMTP. Set **`RESEND_API_KEY`** (optional **`RESEND_FROM`**, defaults to `onboarding@resend.dev`), redeploy.  
+
+   - **Other 502:** Check Resend/SMTP credentials; toast may show a **detail** line.  
+   - **503:** No mail provider configured (`RESEND_API_KEY` or `SMTP_*`).  
    - Always check **spam/junk** for `iiitsurat.ac.in` (institute mail may delay or filter).
 
 5. **Due-date emails on free tier**  

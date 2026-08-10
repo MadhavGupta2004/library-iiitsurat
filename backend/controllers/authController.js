@@ -5,6 +5,7 @@ const AllowedUser = require('../models/AllowedUser');
 const {
     isEmailConfigured,
     formatSmtpError,
+    isSmtpConnectionBlockedError,
     sendPasswordResetEmail,
 } = require('../services/emailService');
 
@@ -170,10 +171,10 @@ const forgotPassword = async (req, res) => {
         }
 
         if (!isEmailConfigured()) {
-            console.warn('[auth] forgot-password: SMTP not configured');
+            console.warn('[auth] forgot-password: email not configured');
             return res.status(503).json({
                 message:
-                    'Password reset email is not available (email not configured). Please contact the library administrator.',
+                    'Password reset email is not available (email not configured). On Render free, set RESEND_API_KEY + RESEND_FROM. Locally you can use SMTP_*.',
             });
         }
 
@@ -213,10 +214,13 @@ const forgotPassword = async (req, res) => {
                     passwordResetExpires: 1,
                 },
             });
+            const blocked = isSmtpConnectionBlockedError(emailErr);
+            const message = blocked
+                ? 'Could not send the reset email: Render free tier blocks Gmail SMTP (ports 25/465/587). Add RESEND_API_KEY + RESEND_FROM on Render (see DEPLOY.md), or upgrade to a paid Render instance.'
+                : 'Could not send the reset email. Prefer RESEND_API_KEY on Render free. For local SMTP: use a Gmail App Password (16 chars, no spaces) for SMTP_PASS; SMTP_USER and SMTP_FROM must be that same Gmail.';
             return res.status(502).json({
-                message:
-                    'Could not send the reset email. Use a Gmail App Password (16 chars, no spaces) for SMTP_PASS; SMTP_USER and the address inside SMTP_FROM must be that same Gmail. If Google emailed you about a blocked sign-in, allow access for mail.',
-                code: 'EMAIL_SEND_FAILED',
+                message,
+                code: blocked ? 'SMTP_BLOCKED' : 'EMAIL_SEND_FAILED',
                 detail: formatSmtpError(emailErr),
             });
         }

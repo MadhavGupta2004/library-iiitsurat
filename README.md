@@ -88,20 +88,20 @@ npm run dev
 - Only `@iiitsurat.ac.in` emails allowed
 - JWT-based authentication with role-based route protection
 - Passwords hashed with bcrypt
-- **Forgot password:** `/forgot-password` sends a one-hour reset link (SMTP required). The link uses **`CLIENT_URL`** if set; on **Render**, **`RENDER_EXTERNAL_URL`** is used automatically so reset works from **any phone / any network** without same Wi‑Fi. Set `CLIENT_URL` for a custom domain or local dev.
+- **Forgot password:** `/forgot-password` sends a one-hour reset link (email required — **Resend** on Render free, or SMTP locally). The link uses **`CLIENT_URL`** if set; on **Render**, **`RENDER_EXTERNAL_URL`** is used automatically so reset works from **any phone / any network** without same Wi‑Fi. Set `CLIENT_URL` for a custom domain or local dev.
 
 ---
 
 ## 📧 Email reminders (optional)
 
-Configure SMTP in `backend/.env` (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, etc. — see `.env.example`). A daily job (default **9:00** server time, override with `DUE_REMINDER_CRON`) sends:
+Configure email in `backend/.env`: on **Render free** use `RESEND_API_KEY` + `RESEND_FROM` (SMTP ports are blocked); locally `SMTP_*` is fine — see `.env.example` / `DEPLOY.md`. A daily job (default **9:00** server time, override with `DUE_REMINDER_CRON`) sends:
 
 - **One day before due date (IST):** “Book due tomorrow” (once per issue).
 - **After due date (IST):** first **overdue** notice (once per issue until returned).
 
 On hosts that sleep (e.g. Render free), use an external cron to **POST** `/api/internal/due-reminders` with header `x-cron-secret` matching `CRON_SECRET`. See `DEPLOY.md`.
 
-**Test “due tomorrow” email locally:** from `backend`, run `npm run test:predue` — it sets the latest **issued** transaction’s due date to **tomorrow (IST)**, clears the reminder flag, and runs the job once (needs SMTP in `.env` and at least one issued book).
+**Test “due tomorrow” email locally:** from `backend`, run `npm run test:predue` — it sets the latest **issued** transaction’s due date to **tomorrow (IST)**, clears the reminder flag, and runs the job once (needs Resend or SMTP in `.env` and at least one issued book).
 
 ---
 
